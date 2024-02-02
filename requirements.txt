@@ -1,0 +1,3 @@
+Flask
+Gunicorn
+# Any other dependencies your app needs
