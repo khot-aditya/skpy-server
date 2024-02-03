@@ -1,56 +1,73 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from skpy import Skype
+import jwt
+import os
 
 messaging = Blueprint("messaging", __name__)
+
+# Constants
+MAX_RETRY_ATTEMPTS = 3
+TOKEN_DIRECTORY = "./token/"
 
 # Initialize Skype client as None
 skype_client = None
 
 
-@messaging.route("/message", methods=["POST"])
+def initialize_skype_client(token):
+    decoded_token = jwt.decode(
+        token, current_app.config["SECRET_KEY"], algorithms=["HS256"]
+    )
+    username = format(decoded_token["username"])
+
+    file_name = username
+    file_path = os.path.join(TOKEN_DIRECTORY, f"{file_name}.txt")
+
+    global skype_client  # Use the global variable
+    skype_client = Skype(None, None, file_path)
+
+
+def send_message_to_contact(contact, message_content):
+    contact.chat.sendMsg(message_content)
+
+
+@messaging.route("/api/message", methods=["POST"])
 def send_message():
     try:
-        # Retrieve the username, password, chatId, and message from the request's JSON payload
+        token = request.headers.get("Authorization")
+        # Retrieve the chatId, and message from the request's JSON payload
         data = request.json
-        username = data.get("username")
-        password = data.get("password")
         to = data.get("to")
         message = data.get("message")
 
         # Validate required fields
-        if not all([username, password, to, message]):
+        if not all([to, message]):
             raise ValueError("Missing required fields")
 
-        file_name = username
-        directory_path = "./token/"
-        file_path = f"{directory_path}{file_name}.txt"
+        try:
+            initialize_skype_client(token)
 
-        # Create a new instance of the Skype client using the provided username, password, and token file
-        global skype_client  # Use the global variable
-        skype_client = Skype(username, password, file_path)
+            # Iterate over each chat ID
+            for chat_id in to:
+                # Retry sending message up to MAX_RETRY_ATTEMPTS times
+                for _ in range(MAX_RETRY_ATTEMPTS):
+                    try:
+                        contact_username = chat_id
+                        contact = skype_client.contacts[contact_username]
 
-        # Iterate over each chat ID
-        for chat_id in to:
-            # Retry sending message up to 3 times
-            for _ in range(3):
-                try:
-                    # Retrieve the contact object corresponding to the chatId from the Skype client's contacts
-                    contact_username = chat_id
-                    contact = skype_client.contacts[contact_username]
+                        send_message_to_contact(contact, message)
 
-                    # Send the message content to the contact's chat
-                    message_content = message
-                    contact.chat.sendMsg(message_content)
+                        # If message is sent successfully, break out of the retry loop
+                        break
 
-                    # If message is sent successfully, break out of the retry loop
-                    break
+                    except Exception as e:
+                        print(f"Error sending message to {chat_id}: {str(e)}")
 
-                except Exception as e:
-                    # Log the error (you can customize this based on your logging setup)
-                    print(f"Error sending message to {chat_id}: {str(e)}")
-
-        # Return a JSON response with a status of "success" and a HTTP status code of 200
-        return jsonify({"status": "success"}), 200
+            # Return a JSON response with a status of "success" and a HTTP status code of 200
+            return jsonify({"status": "success"}), 200
+        except jwt.ExpiredSignatureError:
+            return jsonify({"message": "Token has expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"message": "Invalid token"}), 401
 
     except ValueError as ve:
         # Return a JSON response with a status of "error", the error message as a string, and a HTTP status code of 400

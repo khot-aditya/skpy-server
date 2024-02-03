@@ -1,3 +1,6 @@
 Flask
 Gunicorn
 Skpy
+flask-cors
+python-dotenv 
+PyJWT

@@ -1,1 +1,7 @@
+# This folder contains session info
 /token
+
+# This file contains secret keys
+/config.py
+
+/.vscode
