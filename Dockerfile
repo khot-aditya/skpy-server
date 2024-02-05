@@ -1,17 +1,29 @@
-# Use an official Python runtime as a parent image
-FROM python:3.8-slim
+FROM python:3.8-slim AS builder
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
 COPY . /app
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Make port 5000 available to the world outside this container
-EXPOSE 5000
+# Create the Gunicorn configuration file
+RUN echo 'workers = 4' >gunicorn_config.py
 
-# Run the application using Gunicorn
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:create_app()"]
+# Stage 2: Use Nginx as a reverse proxy
+FROM nginx:1.21.3-alpine
+
+# Copy Gunicorn-based Flask application from the builder stage
+COPY --from=builder /app /app
+
+# Remove default Nginx configuration
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy custom Nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/
+
+# Expose port 80
+EXPOSE 80
+
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
