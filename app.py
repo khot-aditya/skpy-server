@@ -6,10 +6,7 @@ from module.messaging import messaging
 
 def create_app():
     app = Flask(__name__)
-    CORS(
-        app,
-        origins=["http://localhost:5173", "http://skpy.adityakhot.com","https://skpy.adityakhot.com"]
-    )
+    CORS(app)
     app.config.from_pyfile("config.py")
     app.config["SESSION_COOKIE_SECURE"] = True
     app.config["SESSION_COOKIE_HTTPONLY"] = True
