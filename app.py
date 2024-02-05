@@ -8,11 +8,7 @@ def create_app():
     app = Flask(__name__)
     CORS(
         app,
-        resources={
-            r"/api/*": {
-                "origins": ["http://localhost:5173", "http://skpy.adityakhot.com","https://skpy.adityakhot.com"],
-            }
-        },
+        origins=["http://localhost:5173", "http://skpy.adityakhot.com","https://skpy.adityakhot.com"]
     )
     app.config.from_pyfile("config.py")
     app.config["SESSION_COOKIE_SECURE"] = True
